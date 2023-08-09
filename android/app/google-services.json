@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "788141476838",
+    "project_id": "flutterwavepayment-74b47",
+    "storage_bucket": "flutterwavepayment-74b47.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:788141476838:android:00603d7988fabc1c292427",
+        "android_client_info": {
+          "package_name": "com.example.flutterwavepayment"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "788141476838-2pch02mjhuek38raranmca7raefrkmu8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBflohSBpBqzhzC5Sdq13q8pQLrYP5MPo4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "788141476838-2pch02mjhuek38raranmca7raefrkmu8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
