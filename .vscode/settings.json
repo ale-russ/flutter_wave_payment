@@ -6,5 +6,6 @@
     "PUBLICKEY",
     "SECRETKEY",
     "ussd"
-  ]
+  ],
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

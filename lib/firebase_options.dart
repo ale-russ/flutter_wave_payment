@@ -66,6 +66,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '788141476838',
     projectId: 'flutterwavepayment-74b47',
     storageBucket: 'flutterwavepayment-74b47.appspot.com',
+    androidClientId: '788141476838-jdbfdvt9gmdr6fdtsksh4c48fdt8h2uj.apps.googleusercontent.com',
     iosClientId: '788141476838-l97vh542or0f5e2pbhgakjkk6gto5f3o.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterwavepayment',
   );
@@ -76,6 +77,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '788141476838',
     projectId: 'flutterwavepayment-74b47',
     storageBucket: 'flutterwavepayment-74b47.appspot.com',
+    androidClientId: '788141476838-jdbfdvt9gmdr6fdtsksh4c48fdt8h2uj.apps.googleusercontent.com',
     iosClientId: '788141476838-mgvsruh2bbo7fv0qdjerh009psnbvo3d.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterwavepayment.RunnerTests',
   );

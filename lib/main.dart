@@ -1,17 +1,41 @@
 import 'dart:developer';
 
-// import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutterwave_standard/flutterwave.dart';
-import 'package:flutterwavepayment/firebase_options.dart';
-import 'package:flutterwavepayment/user_model.dart';
-import 'package:uuid/uuid.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutterwavepayment/util_methods.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:icons_flutter/icons_flutter.dart';
+
+import 'firebase_options.dart';
+import 'home_page.dart';
+
+bool shouldUseFirebaseEmulator = false;
+
+late final FirebaseApp app;
+late final FirebaseAuth auth;
+GoogleSignIn googleSignIn = GoogleSignIn();
+late UserCredential userCredential;
+late FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin;
+final FirebaseMessaging messaging = FirebaseMessaging.instance;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  app = await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  auth = FirebaseAuth.instanceFor(app: app);
+
+  FirebaseMessaging.onBackgroundMessage(backgroundMessagingHandler);
+  String? registrationToken = await FirebaseMessaging.instance.getToken();
+  log('registrationToken: $registrationToken');
+
+  if (shouldUseFirebaseEmulator) {
+    await auth.useAuthEmulator('localhost', 9099);
+  }
   runApp(const MyApp());
 }
 
@@ -23,297 +47,143 @@ class MyApp extends StatelessWidget {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Standard Demo',
-      home: MyHomePage(title: 'Flutterwave Standard'),
+      // home: MyHomePage(title: 'Flutterwave Standard'),
+      home: AuthPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
+class AuthPage extends StatefulWidget {
+  const AuthPage({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _MyHomePageState createState() => _MyHomePageState();
+  State<AuthPage> createState() => _AuthPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  final formKey = GlobalKey<FormState>();
-  final amountController = TextEditingController();
-  final currencyController = TextEditingController();
-  final narrationController = TextEditingController();
-  final publicKeyController = TextEditingController();
-  final encryptionKeyController = TextEditingController();
-  final emailController = TextEditingController();
-  final phoneNumberController = TextEditingController();
+class _AuthPageState extends State<AuthPage> {
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
-  String? displayName;
-  String? userEmail;
-  String? userNumber;
+  void login() async {
+    var navigator = Navigator.of(context);
 
-  String selectedCurrency = "";
-
-  bool isTestMode = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchUserCollection();
+    String email = emailController.text.trim();
+    String password = passwordController.text;
+    log('User: $email $password');
+    try {
+      UserCredential userCredential = await auth.signInWithEmailAndPassword(
+          email: email, password: password);
+      if (userCredential.user != null) {
+        navigator.push(MaterialPageRoute(builder: (context) => HomePage()));
+      }
+    } catch (err) {
+      log('Error: $err');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loging in: $err'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  Future<List<User>> fetchUserCollection() async {
-    List<User> users = [];
+  void googleLogin() async {
+    var navigator = Navigator.of(context);
 
     try {
-      QuerySnapshot userCollection =
-          await FirebaseFirestore.instance.collection('user').get();
+      GoogleSignInAccount? googleSignInAccount = await googleSignIn.signIn();
+      log('googleSiginInAccount: $googleSignInAccount');
+      GoogleSignInAuthentication googleSignInAuthentication =
+          await googleSignInAccount!.authentication;
 
-      List<QueryDocumentSnapshot> userDocs = userCollection.docs;
-      log('userDocs ${userDocs.first.data()}');
-      for (QueryDocumentSnapshot doc in userDocs) {
-        Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
+      UserCredential userCredential = await auth.signInWithCredential(
+          GoogleAuthProvider.credential(
+              idToken: googleSignInAuthentication.idToken,
+              accessToken: googleSignInAuthentication.accessToken));
 
-        User user = User(
-          displayName: userData['displayName'] ?? '',
-          phoneNumber: userData['phoneNumber'] ?? '',
-          email: userData['email'] ?? '',
-        );
-        users.add(user);
-        displayName = user.displayName;
-        userEmail = user.email;
-        userNumber = user.phoneNumber;
+      if (userCredential.user != null) {
+        getUserProfile(googleSignInAccount.id);
 
-        log('user: ${user.displayName}');
+        await sendNotification(googleSignInAccount);
+
+        navigator.push(MaterialPageRoute(
+            builder: (context) => HomePage(uid: googleSignInAccount.id)));
       }
+    } on Exception catch (err) {
+      log('Error: $err');
 
-      return users;
-    } catch (e) {
-      log('Error fetching user collection: $e');
-      return [];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loging in: $err'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    fetchUserCollection();
-    currencyController.text = selectedCurrency;
-    log('UserEmail $userEmail $displayName');
-
+    // initializeFirebase();
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
       body: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-        child: Form(
-          key: formKey,
-          child: ListView(
-            children: <Widget>[
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: amountController,
-                  textInputAction: TextInputAction.next,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(hintText: "Amount"),
-                  validator: (value) => value != null && value.isNotEmpty
-                      ? null
-                      : "Amount is required",
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: currencyController,
-                  textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.black),
-                  readOnly: true,
-                  onTap: _openBottomSheet,
-                  decoration: const InputDecoration(
-                    hintText: "Currency",
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        color: Colors.white38,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              height: 40,
+              child: TextFormField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  hintText: 'Email',
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: const BorderSide(color: Colors.grey),
                   ),
-                  validator: (value) => value != null && value.isNotEmpty
-                      ? null
-                      : "Currency is required",
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: publicKeyController,
-                  textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.black),
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    hintText: "Public Key",
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.blue),
                   ),
                 ),
               ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: encryptionKeyController,
-                  textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.black),
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    hintText: "Encryption Key",
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 40,
+              child: TextFormField(
+                controller: passwordController,
+                decoration: InputDecoration(
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  hintText: 'Password',
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: const BorderSide(color: Colors.grey),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.blue),
                   ),
                 ),
               ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: emailController,
-                  textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: InputDecoration(
-                    hintText: userEmail,
-                  ),
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: TextFormField(
-                  controller: phoneNumberController,
-                  textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: InputDecoration(
-                    hintText: userNumber,
-                  ),
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: Row(
-                  children: [
-                    const Text("Use Debug"),
-                    Switch(
-                      onChanged: (value) => {
-                        setState(() {
-                          isTestMode = value;
-                        })
-                      },
-                      value: isTestMode,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                height: 50,
-                margin: const EdgeInsets.fromLTRB(0, 20, 0, 10),
-                child: ElevatedButton(
-                  onPressed: _onPressed,
-                  child: const Text(
-                    "Make Payment",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              )
-            ],
-          ),
+            ),
+            const SizedBox(height: 50),
+            ElevatedButton.icon(
+                onPressed: () {
+                  googleLogin();
+                },
+                icon: const Icon(FlutterIcons.google__with_circle_ent),
+                label: const Text('Google sign In')),
+            ElevatedButton(
+              onPressed: () {
+                login();
+              },
+              child: const Text('Login'),
+            )
+          ],
         ),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
-  }
-
-  _onPressed() {
-    final currentState = formKey.currentState;
-    if (currentState != null && currentState.validate()) {
-      _handlePaymentInitialization();
-    }
-  }
-
-  _handlePaymentInitialization() async {
-    final Customer customer = Customer(
-      email: userEmail!,
-      name: displayName!,
-      phoneNumber: userNumber!,
-    );
-
-    final Flutterwave flutterwave = Flutterwave(
-      context: context,
-      publicKey: 'FLWPUBK_TEST-07d1b505448d1358e34d597736dd6b8a-X',
-      currency: selectedCurrency,
-      redirectUrl: 'https://facebook.com',
-      txRef: Uuid().v1(),
-      amount: amountController.text.toString().trim(),
-      customer: customer,
-      paymentOptions: "card, payattitude, barter, bank transfer, ussd, visa",
-      customization: Customization(title: "Test Payment"),
-      isTestMode: true,
-    );
-    final ChargeResponse response = await flutterwave.charge();
-    showLoading(response.toString());
-    log("${response.toJson()}");
-  }
-
-  String getPublicKey() {
-    return "";
-  }
-
-  void _openBottomSheet() {
-    showModalBottomSheet(
-        context: context,
-        builder: (context) {
-          return _getCurrency();
-        });
-  }
-
-  Widget _getCurrency() {
-    final currencies = ["NGN", "RWF", "UGX", "KES", "ZAR", "USD", "GHS", "TZS"];
-    return Container(
-      height: 250,
-      margin: const EdgeInsets.fromLTRB(0, 10, 0, 0),
-      color: Colors.white,
-      child: ListView(
-        children: currencies
-            .map((currency) => ListTile(
-                  onTap: () => {_handleCurrencyTap(currency)},
-                  title: Column(
-                    children: [
-                      Text(
-                        currency,
-                        textAlign: TextAlign.start,
-                        style: const TextStyle(color: Colors.black),
-                      ),
-                      const SizedBox(height: 4),
-                      const Divider(height: 1)
-                    ],
-                  ),
-                ))
-            .toList(),
       ),
-    );
-  }
-
-  _handleCurrencyTap(String currency) {
-    setState(() {
-      selectedCurrency = currency;
-      currencyController.text = currency;
-    });
-    Navigator.pop(context);
-  }
-
-  Future<void> showLoading(String message) {
-    return showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          content: Container(
-            margin: const EdgeInsets.fromLTRB(30, 20, 30, 20),
-            width: double.infinity,
-            height: 50,
-            child: Text(message),
-          ),
-        );
-      },
     );
   }
 }
