@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:flutterwavepayment/main.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_sms/flutter_sms.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -134,4 +135,13 @@ Future<void> sendNotification(GoogleSignInAccount? googleSignInAccount) async {
   } catch (err) {
     log('Error: $err');
   }
+}
+
+void sendSMSMessage({required String message, List<String>? recipients}) async {
+  String result = await sendSMS(message: message, recipients: recipients!)
+      .catchError((onError) {
+    log(onError);
+    return null;
+  });
+  log(result);
 }

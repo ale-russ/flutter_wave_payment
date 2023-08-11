@@ -8,6 +8,7 @@ import 'package:flutterwavepayment/util_methods.dart';
 import 'email_sender.dart';
 import 'flutter_wave_page.dart';
 
+// ignore: must_be_immutable
 class HomePage extends StatefulWidget {
   HomePage({super.key, this.uid});
   String? uid;
@@ -18,6 +19,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   TextEditingController feedbackController = TextEditingController();
+  TextEditingController smsController = TextEditingController();
+  TextEditingController phoneNumberController = TextEditingController();
+
   final FirebaseFirestore firebaseFirestore = FirebaseFirestore.instance;
   @override
   void initState() {
@@ -72,7 +76,70 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               const SizedBox(height: 50),
-              Padding(
+              SizedBox(
+                height: 40,
+                width: MediaQuery.of(context).size.width * 0.9,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    SizedBox(
+                      height: 40,
+                      width: 150,
+                      child: TextFormField(
+                        controller: smsController,
+                        validator: (value) {
+                          if (value != null || value!.isEmpty) {
+                            return 'Sms message should not be empty';
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Enter sms',
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.lightBlue),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 40,
+                      width: 150,
+                      child: TextFormField(
+                        controller: phoneNumberController,
+                        validator: (value) {
+                          if (value != null || value!.isEmpty) {
+                            return 'Enter valid phone number';
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Enter phone number',
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.lightBlue),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                  onPressed: () {
+                    sendSMSMessage(
+                        message: smsController.text,
+                        recipients: [phoneNumberController.text.trim()]);
+                    setState(() {
+                      smsController.text = phoneNumberController.text = '';
+                    });
+                  },
+                  child: Text('Send Sms')),
+              const SizedBox(height: 50),
+              Container(
+                height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: TextFormField(
                   controller: feedbackController,
@@ -129,8 +196,9 @@ class _HomePageState extends State<HomePage> {
                   if (snapshot.hasData) {
                     return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        height: 300,
+                        // height: 300,
                         child: ListView(
+                          shrinkWrap: true,
                           children: snapshot.data!.docs.map((document) {
                             final feedback =
                                 document.data() as Map<String, dynamic>;
@@ -144,6 +212,7 @@ class _HomePageState extends State<HomePage> {
                   }
                 }),
               ),
+              const SizedBox(height: 50),
             ],
           ),
           Positioned(
